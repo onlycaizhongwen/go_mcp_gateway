@@ -85,6 +85,77 @@ type (
 		URL          string                `json:"url,omitempty" yaml:"url,omitempty"`         // for sse and streamable-http
 		Policy       cnst.MCPStartupPolicy `json:"policy" yaml:"policy"`                       // onStart or onDemand
 		Preinstalled bool                  `json:"preinstalled" yaml:"preinstalled"`           // whether to install this MCP server when mcp-gateway starts
+		Discovery    DiscoveryConfig       `json:"discovery,omitempty" yaml:"discovery,omitempty"`
+		LoadBalance  LoadBalanceConfig     `json:"loadBalance,omitempty" yaml:"load_balance,omitempty"`
+		Governance   GovernanceConfig      `json:"governance,omitempty" yaml:"governance,omitempty"`
+	}
+
+	DiscoveryConfig struct {
+		Enabled             bool              `json:"enabled" yaml:"enabled"`
+		Registry            string            `json:"registry" yaml:"registry"`
+		ServiceName         string            `json:"serviceName" yaml:"service_name"`
+		Group               string            `json:"group,omitempty" yaml:"group,omitempty"`
+		Clusters            []string          `json:"clusters,omitempty" yaml:"clusters,omitempty"`
+		HealthyOnly         bool              `json:"healthyOnly" yaml:"healthy_only"`
+		EndpointMetadataKey string            `json:"endpointMetadataKey" yaml:"endpoint_metadata_key"`
+		ProtocolMetadataKey string            `json:"protocolMetadataKey" yaml:"protocol_metadata_key"`
+		SchemeMetadataKey   string            `json:"schemeMetadataKey" yaml:"scheme_metadata_key"`
+		Tags                map[string]string `json:"tags,omitempty" yaml:"tags,omitempty"`
+	}
+
+	LoadBalanceConfig struct {
+		Policy string `json:"policy" yaml:"policy"`
+	}
+
+	GovernanceConfig struct {
+		Authorization  AuthorizationPolicy  `json:"authorization,omitempty" yaml:"authorization,omitempty"`
+		Timeout        TimeoutPolicy        `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+		RateLimit      RateLimitPolicy      `json:"rateLimit,omitempty" yaml:"rate_limit,omitempty"`
+		CircuitBreaker CircuitBreakerPolicy `json:"circuitBreaker,omitempty" yaml:"circuit_breaker,omitempty"`
+		Fallback       FallbackPolicy       `json:"fallback,omitempty" yaml:"fallback,omitempty"`
+	}
+
+	AuthorizationPolicy struct {
+		Enabled        bool                `json:"enabled" yaml:"enabled"`
+		Mode           string              `json:"mode" yaml:"mode"`
+		Rules          []AuthorizationRule `json:"rules,omitempty" yaml:"rules,omitempty"`
+		AllowByDefault bool                `json:"allowByDefault" yaml:"allow_by_default"`
+	}
+
+	AuthorizationRule struct {
+		Clients []string `json:"clients,omitempty" yaml:"clients,omitempty"`
+		Tenants []string `json:"tenants,omitempty" yaml:"tenants,omitempty"`
+		Roles   []string `json:"roles,omitempty" yaml:"roles,omitempty"`
+		Scopes  []string `json:"scopes,omitempty" yaml:"scopes,omitempty"`
+		Servers []string `json:"servers,omitempty" yaml:"servers,omitempty"`
+		Tools   []string `json:"tools,omitempty" yaml:"tools,omitempty"`
+	}
+
+	TimeoutPolicy struct {
+		Request time.Duration `json:"request" yaml:"request"`
+		Connect time.Duration `json:"connect" yaml:"connect"`
+	}
+
+	RateLimitPolicy struct {
+		Enabled   bool   `json:"enabled" yaml:"enabled"`
+		QPS       int    `json:"qps" yaml:"qps"`
+		Burst     int    `json:"burst" yaml:"burst"`
+		Dimension string `json:"dimension" yaml:"dimension"`
+	}
+
+	CircuitBreakerPolicy struct {
+		Enabled             bool          `json:"enabled" yaml:"enabled"`
+		MinRequests         int           `json:"minRequests" yaml:"min_requests"`
+		ErrorRate           float64       `json:"errorRate" yaml:"error_rate"`
+		OpenDuration        time.Duration `json:"openDuration" yaml:"open_duration"`
+		HalfOpenMaxRequests int           `json:"halfOpenMaxRequests" yaml:"half_open_max_requests"`
+	}
+
+	FallbackPolicy struct {
+		Mode        string `json:"mode" yaml:"mode"` // mcp_error, static_text, fallback_service
+		Message     string `json:"message" yaml:"message"`
+		StaticText  string `json:"staticText" yaml:"static_text"`
+		ServiceName string `json:"serviceName" yaml:"service_name"`
 	}
 
 	ArgConfig struct {

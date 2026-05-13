@@ -86,6 +86,22 @@ func (s *State) GetServerConfig(prefix string) *config.ServerConfig {
 	return runtime.server
 }
 
+func (s *State) GetMCPServerConfig(prefix string) *config.MCPServerConfig {
+	runtime, ok := s.runtime[uriPrefix(prefix)]
+	if !ok {
+		return nil
+	}
+	return runtime.mcpServer
+}
+
+func (s *State) GetTenant(prefix string) string {
+	runtime, ok := s.runtime[uriPrefix(prefix)]
+	if !ok {
+		return ""
+	}
+	return runtime.tenant
+}
+
 func (s *State) GetProtoType(prefix string) cnst.ProtoType {
 	runtime, ok := s.runtime[uriPrefix(prefix)]
 	if !ok {

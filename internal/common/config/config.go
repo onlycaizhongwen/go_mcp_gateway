@@ -50,6 +50,38 @@ type (
 		Session        SessionConfig    `yaml:"session"`
 		Auth           AuthConfig       `yaml:"auth"`
 		Metrics        MetricsConfig    `yaml:"metrics"`
+		Registry       RegistryConfig   `yaml:"registry"`
+		Governance     GovernanceConfig `yaml:"governance"`
+	}
+
+	// RegistryConfig controls service registry/discovery integration.
+	RegistryConfig struct {
+		Type  string              `yaml:"type"` // empty or nacos
+		Nacos NacosRegistryConfig `yaml:"nacos"`
+	}
+
+	// NacosRegistryConfig contains Nacos naming client settings.
+	NacosRegistryConfig struct {
+		NamespaceID     string              `yaml:"namespace_id"`
+		Group           string              `yaml:"group"`
+		Clusters        StringList          `yaml:"clusters"`
+		Servers         []NacosServerConfig `yaml:"servers"`
+		Username        string              `yaml:"username"`
+		Password        string              `yaml:"password"`
+		AccessKey       string              `yaml:"access_key"`
+		SecretKey       string              `yaml:"secret_key"`
+		TimeoutMS       uint64              `yaml:"timeout_ms"`
+		CacheDir        string              `yaml:"cache_dir"`
+		LogDir          string              `yaml:"log_dir"`
+		RefreshInterval time.Duration       `yaml:"refresh_interval"`
+	}
+
+	// NacosServerConfig identifies a Nacos server endpoint.
+	NacosServerConfig struct {
+		IP      string `yaml:"ip"`
+		Port    uint64 `yaml:"port"`
+		Scheme  string `yaml:"scheme"`
+		Context string `yaml:"context"`
 	}
 
 	// MetricsConfig controls Prometheus metrics exposure
@@ -204,6 +236,7 @@ func LoadConfig[T Type](filename string) (*T, string, error) {
 		if mcpCfg.ReloadInterval <= time.Second {
 			mcpCfg.ReloadInterval = 600 * time.Second
 		}
+		applyMCPGatewayDefaults(mcpCfg)
 		// Metrics defaults
 		if mcpCfg.Metrics.Enabled {
 			if mcpCfg.Metrics.Path == "" {
@@ -230,6 +263,62 @@ func LoadConfig[T Type](filename string) (*T, string, error) {
 	}
 
 	return &cfg, cfgPath, nil
+}
+
+func applyMCPGatewayDefaults(cfg *MCPGatewayConfig) {
+	if cfg == nil {
+		return
+	}
+	if cfg.Registry.Type == "nacos" {
+		if cfg.Registry.Nacos.Group == "" {
+			cfg.Registry.Nacos.Group = "DEFAULT_GROUP"
+		}
+		if len(cfg.Registry.Nacos.Clusters) == 0 {
+			cfg.Registry.Nacos.Clusters = []string{"DEFAULT"}
+		}
+		if cfg.Registry.Nacos.TimeoutMS == 0 {
+			cfg.Registry.Nacos.TimeoutMS = 5000
+		}
+		if cfg.Registry.Nacos.RefreshInterval <= 0 {
+			cfg.Registry.Nacos.RefreshInterval = 10 * time.Second
+		}
+		for i := range cfg.Registry.Nacos.Servers {
+			if cfg.Registry.Nacos.Servers[i].Scheme == "" {
+				cfg.Registry.Nacos.Servers[i].Scheme = "http"
+			}
+		}
+	}
+	applyGovernanceDefaults(&cfg.Governance)
+}
+
+func applyGovernanceDefaults(cfg *GovernanceConfig) {
+	if cfg == nil {
+		return
+	}
+	if cfg.Timeout.Request <= 0 {
+		cfg.Timeout.Request = 30 * time.Second
+	}
+	if cfg.RateLimit.Burst <= 0 && cfg.RateLimit.QPS > 0 {
+		cfg.RateLimit.Burst = cfg.RateLimit.QPS
+	}
+	if cfg.RateLimit.Dimension == "" {
+		cfg.RateLimit.Dimension = "tenant_tool"
+	}
+	if cfg.CircuitBreaker.MinRequests <= 0 {
+		cfg.CircuitBreaker.MinRequests = 20
+	}
+	if cfg.CircuitBreaker.ErrorRate <= 0 {
+		cfg.CircuitBreaker.ErrorRate = 0.5
+	}
+	if cfg.CircuitBreaker.OpenDuration <= 0 {
+		cfg.CircuitBreaker.OpenDuration = 30 * time.Second
+	}
+	if cfg.CircuitBreaker.HalfOpenMaxRequests <= 0 {
+		cfg.CircuitBreaker.HalfOpenMaxRequests = 1
+	}
+	if cfg.Fallback.Mode == "" {
+		cfg.Fallback.Mode = "mcp_error"
+	}
 }
 
 // resolveEnv replaces environment variable placeholders in YAML content

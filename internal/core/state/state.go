@@ -28,6 +28,7 @@ type (
 
 	runtimeUnit struct {
 		protoType cnst.ProtoType
+		tenant    string
 		router    *config.RouterConfig
 		server    *config.ServerConfig
 		mcpServer *config.MCPServerConfig
@@ -118,6 +119,7 @@ func BuildStateFromConfig(ctx context.Context, cfgs []*config.MCPConfig, oldStat
 			for _, prefix := range prefixes {
 				runtime := newState.getRuntime(prefix)
 				runtime.protoType = cnst.BackendProtoHttp
+				runtime.tenant = cfg.Tenant
 				runtime.server = &server
 				runtime.tools = allowedTools
 				runtime.toolSchemas = allowedToolSchemas
@@ -148,6 +150,7 @@ func BuildStateFromConfig(ctx context.Context, cfgs []*config.MCPConfig, oldStat
 			// Process each prefix for this MCP server
 			for _, prefix := range prefixes {
 				runtime := newState.getRuntime(prefix)
+				runtime.tenant = cfg.Tenant
 				runtime.mcpServer = &mcpServer
 
 				// Check if we already have transport with the same configuration

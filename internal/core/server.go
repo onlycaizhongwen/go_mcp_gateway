@@ -12,6 +12,7 @@ import (
 	"github.com/amoylab/unla/internal/auth"
 	"github.com/amoylab/unla/internal/common/cnst"
 	"github.com/amoylab/unla/internal/common/config"
+	"github.com/amoylab/unla/internal/core/governance"
 	"github.com/amoylab/unla/internal/core/mcpproxy"
 	"github.com/amoylab/unla/internal/core/state"
 	"github.com/amoylab/unla/internal/mcp/session"
@@ -72,6 +73,8 @@ type (
 		toolAccess         config.ToolAccessConfig
 		internalNetACL     internalNetworkAllowlist
 		internalNetEnabled bool
+		governanceConfig   config.GovernanceConfig
+		governanceRuntime  *governance.Runtime
 		// Pre-parsed header lists for efficient lookup
 		ignoreHeaders   []string
 		allowHeaders    []string
@@ -97,6 +100,10 @@ func WithToolAccessConfig(cfg config.ToolAccessConfig) ServerOption {
 	return func(s *Server) { s.applyToolAccessConfig(cfg) }
 }
 
+func WithGovernanceConfig(cfg config.GovernanceConfig) ServerOption {
+	return func(s *Server) { s.governanceConfig = cfg }
+}
+
 // WithTracing sets the tracing service name for OpenTelemetry.
 func WithTracing(serviceName string) ServerOption {
 	return func(s *Server) { s.tracingService = serviceName }
@@ -106,15 +113,16 @@ func WithTracing(serviceName string) ServerOption {
 // features are configured via ServerOption (e.g., tracing, forward config).
 func NewServer(logger *zap.Logger, port int, store storage.Store, sessionStore session.Store, a auth.Auth, opts ...ServerOption) (*Server, error) {
 	s := &Server{
-		logger:          logger,
-		port:            port,
-		router:          gin.Default(),
-		state:           state.NewState(),
-		store:           store,
-		sessions:        sessionStore,
-		shutdownCh:      make(chan struct{}),
-		toolRespHandler: CreateResponseHandlerChain(),
-		auth:            a,
+		logger:            logger,
+		port:              port,
+		router:            gin.Default(),
+		state:             state.NewState(),
+		store:             store,
+		sessions:          sessionStore,
+		shutdownCh:        make(chan struct{}),
+		toolRespHandler:   CreateResponseHandlerChain(),
+		auth:              a,
+		governanceRuntime: governance.NewRuntime(),
 	}
 
 	// Apply options

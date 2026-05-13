@@ -39,6 +39,15 @@ forward:
     case_insensitive: true
     override_existing: false
 pid: ${X_PID:/tmp/gw.pid}
+registry:
+  type: nacos
+  nacos:
+    servers:
+      - ip: 127.0.0.1
+        port: 8848
+governance:
+  rate_limit:
+    qps: 10
 `
 	file := filepath.Join(tmp, "mcp-gateway.yaml")
 	assert.NoError(t, os.WriteFile(file, []byte(yaml), 0o644))
@@ -56,6 +65,15 @@ pid: ${X_PID:/tmp/gw.pid}
 	assert.Equal(t, "A,B", cfg.Forward.Header.AllowHeaders)
 	assert.Equal(t, "C", cfg.Forward.Header.IgnoreHeaders)
 	assert.True(t, cfg.Forward.Header.CaseInsensitive)
+	assert.Equal(t, "nacos", cfg.Registry.Type)
+	assert.Equal(t, "DEFAULT_GROUP", cfg.Registry.Nacos.Group)
+	assert.Equal(t, []string{"DEFAULT"}, []string(cfg.Registry.Nacos.Clusters))
+	assert.Equal(t, uint64(5000), cfg.Registry.Nacos.TimeoutMS)
+	assert.Equal(t, 10*time.Second, cfg.Registry.Nacos.RefreshInterval)
+	assert.Equal(t, "http", cfg.Registry.Nacos.Servers[0].Scheme)
+	assert.Equal(t, 30*time.Second, cfg.Governance.Timeout.Request)
+	assert.Equal(t, 10, cfg.Governance.RateLimit.Burst)
+	assert.Equal(t, "tenant_tool", cfg.Governance.RateLimit.Dimension)
 }
 
 func TestLoadConfig_MCPGateway_InternalAllowlistString(t *testing.T) {

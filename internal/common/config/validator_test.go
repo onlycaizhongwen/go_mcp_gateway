@@ -74,6 +74,49 @@ func TestFormatAndValidateConfigs_DuplicatePrefixes(t *testing.T) {
 	}
 }
 
+func TestValidateMCPConfig_DiscoveryServer(t *testing.T) {
+	cfg := &MCPConfig{
+		Name: "cfg",
+		Routers: []RouterConfig{{
+			Server: "mcp1",
+			Prefix: "/mcp1",
+		}},
+		McpServers: []MCPServerConfig{{
+			Name: "mcp1",
+			Type: "streamable-http",
+			Discovery: DiscoveryConfig{
+				Enabled:     true,
+				Registry:    "nacos",
+				ServiceName: "mcp1",
+			},
+		}},
+	}
+
+	assert.NoError(t, ValidateMCPConfig(cfg))
+}
+
+func TestValidateMCPConfig_DiscoveryServerErrors(t *testing.T) {
+	cfg := &MCPConfig{
+		Name: "cfg",
+		McpServers: []MCPServerConfig{{
+			Name: "bad",
+			Type: "stdio",
+			Discovery: DiscoveryConfig{
+				Enabled:  true,
+				Registry: "other",
+			},
+		}},
+	}
+
+	err := ValidateMCPConfig(cfg)
+	if assert.Error(t, err) {
+		msg := err.Error()
+		assert.Contains(t, msg, "service_name is empty")
+		assert.Contains(t, msg, "unsupported discovery registry")
+		assert.Contains(t, msg, "type \"stdio\" is unsupported")
+	}
+}
+
 func TestMergeConfigs_UpdateAppendDelete(t *testing.T) {
 	existing := []*MCPConfig{{Tenant: "t", Name: "n1"}, {Tenant: "t", Name: "n2"}}
 	// Update n1

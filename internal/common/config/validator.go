@@ -79,6 +79,7 @@ func validateSingleConfig(cfg *MCPConfig) []*ValidationError {
 	// Also add MCP servers to the server name map
 	for _, mcpServer := range cfg.McpServers {
 		serverNames[mcpServer.Name] = true
+		errors = append(errors, validateMCPServerDiscovery(cfg.Name, &mcpServer)...)
 	}
 
 	// Check if all referenced servers exist
@@ -105,6 +106,44 @@ func validateSingleConfig(cfg *MCPConfig) []*ValidationError {
 				})
 			}
 		}
+	}
+
+	return errors
+}
+
+func validateMCPServerDiscovery(configName string, server *MCPServerConfig) []*ValidationError {
+	if server == nil || !server.Discovery.Enabled {
+		return nil
+	}
+
+	var errors []*ValidationError
+	if server.Discovery.ServiceName == "" {
+		errors = append(errors, &ValidationError{
+			Message: fmt.Sprintf("mcp server %q enables discovery but service_name is empty", server.Name),
+			Locations: []Location{{
+				File: configName,
+			}},
+		})
+	}
+
+	if server.Discovery.Registry != "" && server.Discovery.Registry != "nacos" {
+		errors = append(errors, &ValidationError{
+			Message: fmt.Sprintf("mcp server %q uses unsupported discovery registry %q", server.Name, server.Discovery.Registry),
+			Locations: []Location{{
+				File: configName,
+			}},
+		})
+	}
+
+	switch server.Type {
+	case "sse", "streamable-http":
+	default:
+		errors = append(errors, &ValidationError{
+			Message: fmt.Sprintf("mcp server %q enables discovery but type %q is unsupported", server.Name, server.Type),
+			Locations: []Location{{
+				File: configName,
+			}},
+		})
 	}
 
 	return errors

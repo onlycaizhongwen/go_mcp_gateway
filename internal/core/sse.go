@@ -463,7 +463,7 @@ func (s *Server) handlePostMessage(c *gin.Context, conn session.Connection) {
 				return
 			}
 
-			result, err = transport.CallTool(c.Request.Context(), params, mergeRequestInfo(conn.Meta().Request, c.Request))
+			result, err = s.callMCPServerToolWithGovernance(c, conn, params, transport, mergeRequestInfo(conn.Meta().Request, c.Request))
 			if err != nil {
 				s.sendToolExecutionError(c, conn, req, err, true)
 				status = "error"
@@ -473,6 +473,9 @@ func (s *Server) handlePostMessage(c *gin.Context, conn session.Connection) {
 			s.sendProtocolError(c, req.Id, "Unsupported protocol type", http.StatusBadRequest, mcp.ErrorCodeInvalidParams)
 			status = "error"
 			return
+		}
+		if result != nil && result.IsError {
+			status = "error"
 		}
 
 		s.sendSuccessResponse(c, conn, req, result, true)

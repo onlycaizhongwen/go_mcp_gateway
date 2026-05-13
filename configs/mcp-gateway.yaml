@@ -174,3 +174,45 @@ metrics:
     - 5.0
     - 7.5
     - 10
+
+registry:
+  type: "${REGISTRY_TYPE:}" # empty or nacos
+  nacos:
+    namespace_id: "${NACOS_NAMESPACE_ID:public}"
+    group: "${NACOS_GROUP:DEFAULT_GROUP}"
+    clusters: "${NACOS_CLUSTERS:DEFAULT}"
+    servers:
+      - ip: "${NACOS_SERVER_IP:127.0.0.1}"
+        port: ${NACOS_SERVER_PORT:8848}
+        scheme: "${NACOS_SERVER_SCHEME:http}"
+    username: "${NACOS_USERNAME:}"
+    password: "${NACOS_PASSWORD:}"
+    access_key: "${NACOS_ACCESS_KEY:}"
+    secret_key: "${NACOS_SECRET_KEY:}"
+    timeout_ms: ${NACOS_TIMEOUT_MS:5000}
+    cache_dir: "${NACOS_CACHE_DIR:./data/nacos/cache}"
+    log_dir: "${NACOS_LOG_DIR:./logs/nacos}"
+    refresh_interval: "${NACOS_REFRESH_INTERVAL:10s}"
+
+governance:
+  authorization:
+    enabled: ${GOVERNANCE_AUTHORIZATION_ENABLED:false}
+    mode: "${GOVERNANCE_AUTHORIZATION_MODE:allowlist}"
+    allow_by_default: ${GOVERNANCE_AUTHORIZATION_ALLOW_BY_DEFAULT:true}
+    rules: []
+  timeout:
+    request: "${GOVERNANCE_TIMEOUT_REQUEST:30s}"
+  rate_limit:
+    enabled: ${GOVERNANCE_RATE_LIMIT_ENABLED:false}
+    qps: ${GOVERNANCE_RATE_LIMIT_QPS:0}
+    burst: ${GOVERNANCE_RATE_LIMIT_BURST:0}
+    dimension: "${GOVERNANCE_RATE_LIMIT_DIMENSION:tenant_tool}"
+  circuit_breaker:
+    enabled: ${GOVERNANCE_CIRCUIT_BREAKER_ENABLED:false}
+    min_requests: ${GOVERNANCE_CIRCUIT_BREAKER_MIN_REQUESTS:20}
+    error_rate: ${GOVERNANCE_CIRCUIT_BREAKER_ERROR_RATE:0.5}
+    open_duration: "${GOVERNANCE_CIRCUIT_BREAKER_OPEN_DURATION:30s}"
+    half_open_max_requests: ${GOVERNANCE_CIRCUIT_BREAKER_HALF_OPEN_MAX_REQUESTS:1}
+  fallback:
+    mode: "${GOVERNANCE_FALLBACK_MODE:mcp_error}"
+    message: "${GOVERNANCE_FALLBACK_MESSAGE:service temporarily unavailable}"
