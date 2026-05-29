@@ -16,6 +16,8 @@ import (
 	"github.com/amoylab/unla/internal/mcp/session"
 	"github.com/amoylab/unla/internal/mcp/storage"
 	"github.com/amoylab/unla/internal/mcp/storage/notifier"
+	"github.com/amoylab/unla/internal/registry"
+	nacosregistry "github.com/amoylab/unla/internal/registry/nacos"
 	pidHelper "github.com/amoylab/unla/pkg/helper"
 	"github.com/amoylab/unla/pkg/logger"
 	"github.com/amoylab/unla/pkg/trace"
@@ -210,6 +212,15 @@ func run() {
 	}
 
 	// Create server instance with tracing enabled from the start
+	var registryDiscovery registry.Discovery
+	if cfg.Registry.Type == "nacos" {
+		registryClient, err := nacosregistry.NewClient(cfg.Registry.Nacos)
+		if err != nil {
+			logger.Fatal("Failed to create nacos registry client", zap.Error(err))
+		}
+		registryDiscovery = registryClient
+	}
+
 	server, err := core.NewServer(
 		logger,
 		cfg.Port,
@@ -219,6 +230,7 @@ func run() {
 		core.WithForwardConfig(cfg.Forward),
 		core.WithToolAccessConfig(cfg.ToolAccess),
 		core.WithGovernanceConfig(cfg.Governance),
+		core.WithRegistryDiscovery(registryDiscovery),
 		core.WithTraceCapture(cfg.Tracing.Capture),
 		core.WithTracing(tracingServiceName), // Register OTel middleware early
 	)

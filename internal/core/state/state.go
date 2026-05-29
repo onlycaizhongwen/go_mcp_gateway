@@ -8,6 +8,7 @@ import (
 	"github.com/amoylab/unla/internal/common/cnst"
 	"github.com/amoylab/unla/internal/common/config"
 	"github.com/amoylab/unla/internal/core/mcpproxy"
+	"github.com/amoylab/unla/internal/registry"
 	"github.com/amoylab/unla/internal/template"
 	"github.com/amoylab/unla/pkg/mcp"
 	"github.com/ifuryst/lol"
@@ -59,8 +60,17 @@ func NewState() *State {
 	}
 }
 
+func firstRegistry(registries []registry.Discovery) registry.Discovery {
+	for _, r := range registries {
+		if r != nil {
+			return r
+		}
+	}
+	return nil
+}
+
 // BuildStateFromConfig creates a new State from the given configuration
-func BuildStateFromConfig(ctx context.Context, cfgs []*config.MCPConfig, oldState *State, logger *zap.Logger) (*State, error) {
+func BuildStateFromConfig(ctx context.Context, cfgs []*config.MCPConfig, oldState *State, logger *zap.Logger, registries ...registry.Discovery) (*State, error) {
 	// Create new state
 	newState := NewState()
 	newState.rawConfigs = cfgs
@@ -182,7 +192,11 @@ func BuildStateFromConfig(ctx context.Context, cfgs []*config.MCPConfig, oldStat
 				// Create new transport if needed
 				if transport == nil {
 					var err error
-					transport, err = mcpproxy.NewTransport(mcpServer)
+					if mcpServer.Discovery.Enabled {
+						transport, err = mcpproxy.NewDiscoveryTransport(firstRegistry(registries), mcpServer)
+					} else {
+						transport, err = mcpproxy.NewTransport(mcpServer)
+					}
 					if err != nil {
 						return nil, fmt.Errorf("failed to create transport for server %s: %w", mcpServer.Name, err)
 					}

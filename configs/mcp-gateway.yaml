@@ -178,7 +178,8 @@ metrics:
 registry:
   type: "${REGISTRY_TYPE:}" # empty or nacos
   nacos:
-    namespace_id: "${NACOS_NAMESPACE_ID:public}"
+    # Nacos public namespace uses an empty namespace_id.
+    namespace_id: "${NACOS_NAMESPACE_ID:}"
     group: "${NACOS_GROUP:DEFAULT_GROUP}"
     clusters: "${NACOS_CLUSTERS:DEFAULT}"
     servers:

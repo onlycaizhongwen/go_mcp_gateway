@@ -17,6 +17,7 @@ import (
 	"github.com/amoylab/unla/internal/core/state"
 	"github.com/amoylab/unla/internal/mcp/session"
 	"github.com/amoylab/unla/internal/mcp/storage"
+	"github.com/amoylab/unla/internal/registry"
 	"github.com/amoylab/unla/pkg/mcp"
 	apptrace "github.com/amoylab/unla/pkg/trace"
 
@@ -75,6 +76,7 @@ type (
 		internalNetEnabled bool
 		governanceConfig   config.GovernanceConfig
 		governanceRuntime  *governance.Runtime
+		registryDiscovery  registry.Discovery
 		// Pre-parsed header lists for efficient lookup
 		ignoreHeaders   []string
 		allowHeaders    []string
@@ -102,6 +104,10 @@ func WithToolAccessConfig(cfg config.ToolAccessConfig) ServerOption {
 
 func WithGovernanceConfig(cfg config.GovernanceConfig) ServerOption {
 	return func(s *Server) { s.governanceConfig = cfg }
+}
+
+func WithRegistryDiscovery(discovery registry.Discovery) ServerOption {
+	return func(s *Server) { s.registryDiscovery = discovery }
 }
 
 // WithTracing sets the tracing service name for OpenTelemetry.
@@ -405,7 +411,7 @@ func (s *Server) updateConfigs(ctx context.Context) (*state.State, error) {
 	}
 
 	s.logger.Info("initializing server state")
-	newState, err := state.BuildStateFromConfig(ctx, cfgs, s.state, s.logger)
+	newState, err := state.BuildStateFromConfig(ctx, cfgs, s.state, s.logger, s.registryDiscovery)
 	if err != nil {
 		s.logger.Error("failed to initialize server state",
 			zap.Error(err))
@@ -467,7 +473,7 @@ func (s *Server) UpdateConfig(ctx context.Context, cfg *config.MCPConfig) {
 	cfgs := config.MergeConfigs(currentState.GetRawConfigs(), cfg)
 
 	// Build new state from updated configs
-	updatedState, err := state.BuildStateFromConfig(ctx, cfgs, currentState, s.logger)
+	updatedState, err := state.BuildStateFromConfig(ctx, cfgs, currentState, s.logger, s.registryDiscovery)
 	if err != nil {
 		s.logger.Error("failed to build state from updated configs",
 			zap.Error(err))

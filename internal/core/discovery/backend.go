@@ -15,6 +15,7 @@ const (
 	DefaultEndpointMetadataKey = "mcp.endpoint"
 	DefaultProtocolMetadataKey = "mcp.protocol"
 	DefaultSchemeMetadataKey   = "mcp.scheme"
+	DefaultHostMetadataKey     = "mcp.host"
 )
 
 type SelectedInstance struct {
@@ -81,9 +82,13 @@ func (b *Backend) Select(ctx context.Context) (SelectedInstance, error) {
 	if protocol == "" {
 		protocol = b.protocol
 	}
+	host := selected.Metadata[DefaultHostMetadataKey]
+	if host == "" {
+		host = selected.IP
+	}
 	return SelectedInstance{
 		Instance: selected,
-		URL:      scheme + "://" + net.JoinHostPort(selected.IP, fmt.Sprintf("%d", selected.Port)) + ensureLeadingSlash(endpoint),
+		URL:      scheme + "://" + net.JoinHostPort(host, fmt.Sprintf("%d", selected.Port)) + ensureLeadingSlash(endpoint),
 		Protocol: protocol,
 	}, nil
 }

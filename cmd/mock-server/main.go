@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	addr    string
-	sseAddr string
-	logger  *zap.Logger
+	addr     string
+	sseAddr  string
+	nacosReg nacosRegistrationOptions
+	logger   *zap.Logger
 )
 
 func init() {
@@ -32,6 +33,20 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.PersistentFlags().StringVarP(&addr, "addr", "a", ":5236", "Address to listen on")
 	rootCmd.PersistentFlags().StringVarP(&sseAddr, "sse-addr", "s", ":5237", "Address to listen on for SSE")
+	rootCmd.PersistentFlags().BoolVar(&nacosReg.Enabled, "register-nacos", false, "Register the SSE MCP server instance to Nacos")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.NacosHost, "nacos-host", "127.0.0.1", "Nacos server host")
+	rootCmd.PersistentFlags().Uint64Var(&nacosReg.NacosPort, "nacos-port", 8848, "Nacos server port")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.NacosScheme, "nacos-scheme", "http", "Nacos server scheme")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.NacosNamespace, "nacos-namespace", "", "Nacos namespace ID")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.NacosGroup, "nacos-group", "DEFAULT_GROUP", "Nacos service group")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.NacosCluster, "nacos-cluster", "DEFAULT", "Nacos cluster")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.ServiceName, "nacos-service-name", "mock-user-sse", "Nacos service name for this MCP server")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.RegisterIP, "mcp-register-host", "127.0.0.1", "MCP server IP registered to Nacos")
+	rootCmd.PersistentFlags().Uint64Var(&nacosReg.RegisterPort, "mcp-register-port", 0, "MCP server port registered to Nacos; defaults to --sse-addr port")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.MCPScheme, "mcp-scheme", "http", "MCP server access scheme metadata")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.MCPProtocol, "mcp-protocol", "sse", "MCP server protocol metadata")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.MCPEndpoint, "mcp-endpoint", "/sse", "MCP server endpoint metadata")
+	rootCmd.PersistentFlags().StringVar(&nacosReg.MCPHost, "mcp-host", "localhost", "Optional MCP access host metadata override")
 }
 
 var (
@@ -57,6 +72,13 @@ func StartMockServer(addr string) {
 	// Create a context that will be canceled on OS signals
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if nacosReg.Enabled {
+		if err := registerSSEMCPServer(ctx, nacosReg, sseAddr); err != nil {
+			logger.Fatal("Failed to register mock MCP server to Nacos", zap.Error(err))
+		}
+		defer deregisterSSEMCPServer(nacosReg, sseAddr)
+	}
 
 	// Create error channel to collect errors from all servers
 	errChan := make(chan error, 3)
