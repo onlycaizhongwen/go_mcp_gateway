@@ -16,9 +16,6 @@
 - 支持 SSE 与 Streamable HTTP MCP Server 代理
 - 真实 Docker Nacos 环境联调验证
 
-## 简历关键词 / Resume Keywords
-
-`Go` `Golang` `MCP` `Model Context Protocol` `MCP Gateway` `Nacos` `Service Discovery` `Registry` `Load Balancing` `API Gateway` `Gateway Governance` `Rate Limiting` `Circuit Breaker` `Timeout` `Fallback` `Authorization` `SSE` `Streamable HTTP` `Microservices` `Docker` `Configuration Driven`
 
 ## 二开亮点 / Custom Features
 
