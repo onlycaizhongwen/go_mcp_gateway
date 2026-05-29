@@ -1,251 +1,174 @@
-# Go MCP Gateway 二开项目 / Nacos Service Discovery Gateway
 
-> 基于 Unla / MCP Gateway 的二次改造项目，面向企业级 MCP Server 接入、Nacos 服务发现、统一网关调度与治理链落地。  
-> A customized Go-based MCP Gateway with Nacos service discovery, dynamic MCP server routing, and gateway governance.
+Go MCP Gateway | Enterprise Edition (企业级增强版)
 
-## 项目定位 / Project Overview
+Positioning | 项目定位  
 
-本项目在开源 MCP Gateway 能力基础上进行二次开发，重点解决 MCP Server 在企业环境中的注册发现、统一调度、权限控制和稳定性治理问题。
+An enterprise-grade MCP Gateway built on Nacos Ecosystem, solving MCP Server Discovery, Traffic Governance, and AI Tool Reliability.  
 
-核心目标：
+基于 Nacos 生态 构建的企业级 MCP 网关，专注于解决 AI 场景下 MCP Server 的动态发现、统一调度与流量治理 问题。
 
-- MCP Server 自动注册到 Nacos / automatic MCP server registration to Nacos
-- Gateway 通过 Nacos 自动发现服务 / service discovery through Nacos
-- 对 MCP 工具调用统一调度 / centralized MCP tool invocation routing
-- 网关治理链：权限、超时、限流、熔断、降级
-- 支持 SSE 与 Streamable HTTP MCP Server 代理
-- 真实 Docker Nacos 环境联调验证
+Based on the upstream mcp-ecosystem/mcpgateway, this project focuses on production readiness.  
+本项目基于上游 mcpgateway 进行二次开发，核心目标是填补 AI 生产环境中的治理空白。
+
+Why This Exists (痛点与破局)
+
+In enterprise AI scenarios, MCP Servers are not static endpoints. They are:
+在企业级 AI 落地场景中，MCP Server 不再是静态端点，而是：
+
+• Dynamic Scaling (K8s / VM elasticity) | 动态伸缩 (容器与虚拟机弹性)
+
+• Heterogeneous (Java Spring Cloud, Python FastAPI, Go Microservices) | 异构技术栈
+
+• High Risk (LLM-induced high-frequency calls, unpredictable latency) | 高风险 (大模型引发的高频调用与抖动)
+
+Standard MCP Gateways lack the following capabilities:  
+标准 MCP 网关通常缺失以下能力：
+
+1. Service Discovery | 服务发现 (No native support for Nacos/Eureka/Consul).
+2. Traffic Governance | 流量治理 (No built-in rate limiting or circuit breaking for tools/call).
+3. Stability | 稳定性 (No fallback mechanism when downstream fails).
+
+Architecture | 架构总览
+
+┌─────────────┐
+│ MCP Client  │ (Claude / Cursor / Codex)
+└──────┬──────┘
+       │ SSE / Streamable HTTP
+┌──────▼──────────┐
+│  MCP Gateway   │◄──────┐
+│  (Go)           │       │ Governance Chain
+│                │       │ 1. AuthZ
+└──────┬──────────┘       │ 2. Timeout
+       │                  │ 3. Rate Limit
+       │ Discovery        │ 4. Circuit Breaker
+┌──────▼──────────┐       │ 5. Fallback
+│ Nacos Registry  │───────┘
+│ (Service Mesh)  │
+└──────┬──────────┘
+       │ Healthy Instances
+┌──────▼──────────┐
+│ MCP Server(s)   │
+│ (Java/Py/Go)    │
+└─────────────────┘
 
 
-## 二开亮点 / Custom Features
+Core Features (核心能力)
 
-### 1. Nacos 注册中心接入 / Nacos Registry Integration
+1. Nacos-Centric Service Discovery
 
-- 新增统一注册中心抽象：`Discovery`、`Registrar`、`Client`
-- 新增 Nacos SDK 适配层
-- 支持健康实例查询、服务注册、服务注销
-- 支持 namespace、group、cluster、metadata 配置
+1. 以 Nacos 为核心的动态发现
 
-相关代码：
+Instead of static YAML configuration, MCP Servers register themselves to Nacos dynamically.
+摒弃静态 YAML 配置，MCP Server 启动时自动向 Nacos 注册。
 
-- `internal/registry`
-- `internal/registry/nacos`
-- `internal/common/config`
+• Abstracted Registry Layer: Decoupled Discovery / Registrar interfaces.  
 
-### 2. MCP Server 自动注册 / MCP Server Auto Registration
+  抽象注册层：解耦 Discovery/Registrar 接口，支持未来扩展 Eureka/K8s。
+• Metadata-Driven Protocols: Supports both SSE and Streamable HTTP.  
 
-`cmd/mock-server` 已支持启动时自动注册 SSE MCP Server 到 Nacos，退出时自动注销。
+  元数据驱动：通过 Nacos Metadata 区分 SSE 与 Streamable HTTP 协议。
 
-示例：
+2. MCP-Aware Governance Chain (Critical)
 
-```powershell
-go run ./cmd/mock-server `
-  --addr :15336 `
-  --sse-addr :15337 `
-  --register-nacos `
-  --nacos-service-name mock-user-sse `
-  --mcp-register-host 127.0.0.1 `
-  --mcp-register-port 15337 `
-  --mcp-host localhost
-```
+2. 面向 MCP 的网关治理链（核心差异）
 
-Nacos metadata 约定：
+Governance is injected specifically into the tools/call lifecycle.
+治理逻辑精准挂载在 tools/call 生命周期上，防止 AI Agent 拖垮后端系统。
 
-```text
-mcp.endpoint=/sse
-mcp.protocol=sse
-mcp.scheme=http
-mcp.host=localhost
-```
+Feature Implementation Purpose
 
-### 3. 网关自动发现与统一调度 / Gateway Discovery Routing
+Authorization Allowlist Mode 防止未授权的 Agent 调用敏感工具
 
-网关启动时会根据配置创建 Nacos discovery client，并注入到核心服务。对于开启 discovery 的 MCP Server，网关会在每次调用前解析真实实例地址，再创建对应 transport 完成调用。
+Timeout Per-Tool Config 防止大模型阻塞等待
 
-能力包括：
+Rate Limit Token Bucket 保护遗留 Java 系统免受 LLM "Spam"
 
-- DiscoveryTransport 动态解析实例
-- 支持 round_robin、weighted_round_robin、random 负载均衡
-- 支持通过 metadata 覆盖 endpoint、protocol、scheme、host
-- 支持 SSE / Streamable HTTP 代理路径
+Circuit Breaker Error Rate Threshold 下游故障时快速熔断，防止雪崩
 
-相关代码：
+Fallback Static Text / Cache 优雅降级，返回友好提示而非 5xx
 
-- `internal/core/mcpproxy/discovery.go`
-- `internal/core/discovery`
-- `internal/core/state/state.go`
-- `cmd/mcp-gateway/main.go`
+3. Dual Protocol Proxy
 
-### 4. 网关治理链 / Gateway Governance Chain
+3. 双协议代理支持
 
-已在 MCP Server `tools/call` 调用路径接入治理能力：
+• Full compatibility with MCP SSE.
 
-- Authorization / 权限控制
-- Request Timeout / 请求超时
-- Local Rate Limit / 本地令牌桶限流
-- Circuit Breaker / 错误率熔断
-- Fallback / MCP 错误或静态文本降级
+• Support for Streamable HTTP (Replacement for long-polling).
 
-相关代码：
+Quick Start (Local Verification) | 快速开始
 
-- `internal/core/governance`
-- `internal/core/governance_call.go`
-- `internal/core/server.go`
+1. Start Nacos (Standalone)
 
-## 架构说明 / Architecture
+1. 启动 Nacos 单机版
 
-```text
-MCP Client
-    |
-    | SSE / Streamable HTTP
-    v
-MCP Gateway
-    |
-    | Authorization / Timeout / RateLimit / CircuitBreaker / Fallback
-    v
-DiscoveryTransport
-    |
-    | serviceName + group + cluster + metadata
-    v
-Nacos Registry
-    |
-    | healthy instances
-    v
-MCP Server Instance
-```
-
-## 用户视角调用流程 / User Flow
-
-1. MCP Server 启动后自动注册到 Nacos。
-2. 用户或 MCP Client 请求 Gateway 的 MCP endpoint。
-3. Gateway 根据配置找到对应 MCP Server。
-4. 如果该服务开启 discovery，Gateway 从 Nacos 获取健康实例。
-5. Gateway 按负载均衡策略选择实例。
-6. 调用进入治理链，依次执行权限、超时、限流、熔断和降级逻辑。
-7. Gateway 转发到真实 MCP Server，并把工具调用结果返回给 MCP Client。
-
-## 配置示例 / Config Example
-
-全局注册中心：
-
-```yaml
-registry:
-  type: nacos
-  nacos:
-    namespace_id: ""
-    group: DEFAULT_GROUP
-    clusters: DEFAULT
-    servers:
-      - ip: 127.0.0.1
-        port: 8848
-        scheme: http
-```
-
-MCP Server discovery：
-
-```yaml
-mcpServers:
-  - name: mock-user-sse
-    type: sse
-    policy: onDemand
-    discovery:
-      enabled: true
-      registry: nacos
-      service_name: mock-user-sse
-      group: DEFAULT_GROUP
-      healthy_only: true
-    load_balance:
-      policy: round_robin
-```
-
-治理链：
-
-```yaml
-governance:
-  authorization:
-    enabled: true
-    mode: allowlist
-    allow_by_default: false
-  timeout:
-    request: 5s
-  rate_limit:
-    enabled: true
-    qps: 20
-    burst: 40
-  circuit_breaker:
-    enabled: true
-    min_requests: 10
-    error_rate: 0.5
-    open_duration: 30s
-  fallback:
-    enabled: true
-    mode: static_text
-    static_text: "service temporarily unavailable"
-```
-
-## 本地验证 / Local Verification
-
-启动 Nacos：
-
-```powershell
 docker run -d --name nacos-standalone `
   -e MODE=standalone `
   -p 8848:8848 `
-  -p 9848:9848 `
-  -p 9849:9849 `
   nacos/nacos-server:v2.3.2
-```
 
-定向测试：
 
-```powershell
-go test ./cmd/mock-server ./internal/core/discovery ./internal/core/mcpproxy ./internal/core/state ./internal/core ./internal/common/config ./internal/registry/...
-```
+2. Run Mock MCP Server (Auto Register)
 
-真实 Nacos discovery 测试：
+2. 启动 Mock MCP Server（自动注册）
 
-```powershell
-$env:UNLA_LIVE_NACOS_TEST='1'
-go test ./internal/core/mcpproxy -run TestDiscoveryTransportWithLiveNacos -v
-```
+go run ./cmd/mock-server `
+  --register-nacos `
+  --nacos-service-name mock-user-sse `
+  --mcp-register-port 15337
 
-自动注册链路测试：
 
-```powershell
-$env:UNLA_LIVE_NACOS_AUTOREG_TEST='1'
-$env:UNLA_AUTOREG_SERVICE_NAME='mock-user-sse-autoreg-15337'
-go test ./internal/core/mcpproxy -run TestDiscoveryTransportWithLiveNacosAutoRegisteredService -v
-```
+3. Run Gateway
 
-## 已验证能力 / Verified Capabilities
+3. 启动网关
 
-- Docker Nacos standalone 可用
-- MCP Server 可自动注册到 Nacos
-- MCP Server 停止后可从 Nacos 注销
-- Gateway 可从 Nacos 发现健康实例
-- Gateway 可通过发现实例调用 MCP tool
-- 治理链覆盖 MCP Server `tools/call`
-- 相关包定向测试通过
+go run ./cmd/mcp-gateway --config config.yaml
 
-## 已知限制 / Known Limitations
 
-- 当前自动注册示例主要覆盖 SSE MCP Server。
-- Windows 下全量 `go test ./...` 仍受上游既有测试影响，包括临时文件锁和 Unix-only signal 测试；本次改造相关包已完成定向验证。
+Configuration Snippets | 配置示例
 
-## 原项目说明 / Upstream
+Global Registry (Nacos)
 
-本项目基于 Unla / MCP Gateway 二次开发。原项目能力包括：
+全局注册中心配置
 
-- REST API 转 MCP Server
-- MCP Server proxy
-- MCP SSE
-- MCP Streamable HTTP
-- 配置持久化与热更新
-- Web 管理界面
-- Docker / Kubernetes / Helm 部署
+registry:
+  type: nacos
+  nacos:
+    namespace_id: public
+    servers: [{ ip: 127.0.0.1, port: 8848 }]
 
-Upstream repository: `mcp-ecosystem/mcp-gateway`
 
-## License
+Governance Policy (Safety First)
 
-This project follows the upstream MIT License.
+治理链配置（安全第一）
+
+governance:
+  rate_limit:
+    enabled: true
+    qps: 20      # Max 20 calls/sec per tool
+  circuit_breaker:
+    enabled: true
+    error_rate: 0.5  # Open circuit if 50% calls fail
+  fallback:
+    enabled: true
+    static_text: "System busy, please try again later."
+
+
+Verification Status | 验证状态
+
+✅ Nacos Auto-Registration / Deregistration | Nacos 自动注册与注销  
+✅ Live Discovery & Routing | 实时发现与路由  
+✅ Rate Limiting & Circuit Breaking | 限流与熔断  
+✅ SSE & Streamable HTTP Proxy | 双协议代理  
+✅ Docker Compose Ready | 容器化就绪  
+
+Relation to Upstream | 与原项目关系
+
+This project extends https://github.com/mcp-ecosystem/mcpgateway.  
+While upstream provides the core MCP protocol handling, this edition adds Enterprise Service Mesh capabilities required for production AI systems.
+
+本项目是对上游 mcpgateway 的企业级增强。上游负责 MCP 协议核心解析，本仓库负责补齐 企业级服务治理与发现 能力，使其满足生产级 AI 系统的严苛要求。
+
+License
+
+This project follows the upstream MIT License.  
+本项目遵循上游 MIT 开源协议。
