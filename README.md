@@ -1,157 +1,254 @@
-# Unla - MCP Gateway
+# Go MCP Gateway 二开项目 / Nacos Service Discovery Gateway
 
-> 🚀 Instantly transform your existing MCP Servers and APIs into [MCP](https://modelcontextprotocol.io/) endpoints — without changing a line of code.
+> 基于 Unla / MCP Gateway 的二次改造项目，面向企业级 MCP Server 接入、Nacos 服务发现、统一网关调度与治理链落地。  
+> A customized Go-based MCP Gateway with Nacos service discovery, dynamic MCP server routing, and gateway governance.
 
-[![English](https://img.shields.io/badge/English-Click-yellow)](./README.md)
-[![简体中文](https://img.shields.io/badge/简体中文-点击查看-orange)](docs/README.zh-CN.md)
-[![繁體中文](https://img.shields.io/badge/繁體中文-點擊查看-blue)](docs/README.zh-TW.md)
-[![Release](https://img.shields.io/github/v/release/mcp-ecosystem/mcp-gateway)](https://github.com/amoylab/unla/releases)
-[![Docs](https://img.shields.io/badge/Docs-View%20Online-blue)](https://docs.unla.amoylab.com)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/mcp-ecosystem/mcp-gateway)
-[![Discord](https://img.shields.io/badge/Discord-Join%20our%20Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/udf69cT9TY)
-[![Go Report Card](https://goreportcard.com/badge/github.com/amoylab/unla)](https://goreportcard.com/report/github.com/amoylab/unla)
-[![Snyk Security](https://img.shields.io/badge/Snyk-Secure-blueviolet?logo=snyk)](https://snyk.io/test/github/mcp-ecosystem/mcp-gateway)
-<a href="https://llmapis.com?source=https%3A%2F%2Fgithub.com%2FAmoyLab%2FUnla" target="_blank"><img src="https://llmapis.com/api/badge/AmoyLab/Unla" alt="LLMAPIS" width="20" /></a>
+## 项目定位 / Project Overview
 
----
+本项目在开源 MCP Gateway 能力基础上进行二次开发，重点解决 MCP Server 在企业环境中的注册发现、统一调度、权限控制和稳定性治理问题。
 
-> ⚡ **Note**: Unla is under rapid development! We strive to maintain backward compatibility, but it cannot be 100% guaranteed. Please make sure to check version changes carefully when upgrading. Due to the fast iteration, documentation updates may sometimes lag behind. If you encounter any issues, feel free to search or ask for help via [Discord](https://discord.gg/udf69cT9TY) or [Issues](https://github.com/amoylab/unla/issues) ❤️
+核心目标：
 
----
+- MCP Server 自动注册到 Nacos / automatic MCP server registration to Nacos
+- Gateway 通过 Nacos 自动发现服务 / service discovery through Nacos
+- 对 MCP 工具调用统一调度 / centralized MCP tool invocation routing
+- 网关治理链：权限、超时、限流、熔断、降级
+- 支持 SSE 与 Streamable HTTP MCP Server 代理
+- 真实 Docker Nacos 环境联调验证
 
-## ✨ What is Unla?
+## 简历关键词 / Resume Keywords
 
-**Unla** is a lightweight and highly available gateway service written in Go. It enables individuals and organizations to convert their existing MCP Servers and APIs into services compliant with the [MCP Protocol](https://modelcontextprotocol.io/) — all through configuration, with **zero code changes**.
+`Go` `Golang` `MCP` `Model Context Protocol` `MCP Gateway` `Nacos` `Service Discovery` `Registry` `Load Balancing` `API Gateway` `Gateway Governance` `Rate Limiting` `Circuit Breaker` `Timeout` `Fallback` `Authorization` `SSE` `Streamable HTTP` `Microservices` `Docker` `Configuration Driven`
 
-https://github.com/user-attachments/assets/69480eda-7aa7-4be7-9bc7-cae57fe16c54
+## 二开亮点 / Custom Features
 
-### 🔧 Core Design Principles
+### 1. Nacos 注册中心接入 / Nacos Registry Integration
 
-- ✅ Zero Intrusion: Platform-agnostic, supports deployment on bare metal, VMs, ECS, Kubernetes, etc., without modifying existing infrastructure
-- 🔄 Configuration-Driven: Convert legacy APIs to MCP Servers using YAML configuration — no code required
-- 🪶 Lightweight & Efficient: Designed for minimal resource usage without compromising on performance or availability
-- 🧭 Built-in Management UI: Ready-to-use web interface to simplify setup and reduce operational overhead
+- 新增统一注册中心抽象：`Discovery`、`Registrar`、`Client`
+- 新增 Nacos SDK 适配层
+- 支持健康实例查询、服务注册、服务注销
+- 支持 namespace、group、cluster、metadata 配置
 
----
+相关代码：
 
-## 🚀 Getting Started
+- `internal/registry`
+- `internal/registry/nacos`
+- `internal/common/config`
 
-Unla supports a ready-to-run Docker deployment. Full deployment and configuration instructions are available in the [docs](https://docs.unla.amoylab.com/getting-started/quick-start).
+### 2. MCP Server 自动注册 / MCP Server Auto Registration
 
-### Quick Launch with Docker
+`cmd/mock-server` 已支持启动时自动注册 SSE MCP Server 到 Nacos，退出时自动注销。
 
-Configure environment variables:
+示例：
 
-```bash
-export APISERVER_JWT_SECRET_KEY="changeme-please-generate-a-random-secret"
-export SUPER_ADMIN_USERNAME="admin"
-export SUPER_ADMIN_PASSWORD="changeme-please-use-a-secure-password"
+```powershell
+go run ./cmd/mock-server `
+  --addr :15336 `
+  --sse-addr :15337 `
+  --register-nacos `
+  --nacos-service-name mock-user-sse `
+  --mcp-register-host 127.0.0.1 `
+  --mcp-register-port 15337 `
+  --mcp-host localhost
 ```
 
-Launch the container:
+Nacos metadata 约定：
 
-```bash
-docker run -d \
-  --name unla \
-  -p 8080:80 \
-  -p 5234:5234 \
-  -p 5235:5235 \
-  -p 5335:5335 \
-  -p 5236:5236 \
-  -e ENV=production \
-  -e TZ=Asia/Shanghai \
-  -e APISERVER_JWT_SECRET_KEY=${APISERVER_JWT_SECRET_KEY} \
-  -e SUPER_ADMIN_USERNAME=${SUPER_ADMIN_USERNAME} \
-  -e SUPER_ADMIN_PASSWORD=${SUPER_ADMIN_PASSWORD} \
-  --restart unless-stopped \
-  ghcr.io/amoylab/unla/allinone:latest
+```text
+mcp.endpoint=/sse
+mcp.protocol=sse
+mcp.scheme=http
+mcp.host=localhost
 ```
 
-### Access and Configuration
+### 3. 网关自动发现与统一调度 / Gateway Discovery Routing
 
-1. Access the Web Interface:
-   - Open http://localhost:8080/ in your browser
-   - Login with the administrator credentials you configured
+网关启动时会根据配置创建 Nacos discovery client，并注入到核心服务。对于开启 discovery 的 MCP Server，网关会在每次调用前解析真实实例地址，再创建对应 transport 完成调用。
 
-2. Add an MCP Server:
-   - Copy the config from: https://github.com/amoylab/unla/blob/main/configs/proxy-mock-server.yaml
-   - Click "Add MCP Server" in the web interface
-   - Paste the configuration and save
+能力包括：
 
-### Available Endpoints
+- DiscoveryTransport 动态解析实例
+- 支持 round_robin、weighted_round_robin、random 负载均衡
+- 支持通过 metadata 覆盖 endpoint、protocol、scheme、host
+- 支持 SSE / Streamable HTTP 代理路径
 
-After configuration, the service will be available at these endpoints:
+相关代码：
 
-- MCP SSE: http://localhost:5235/mcp/user/sse
-- MCP SSE Message: http://localhost:5235/mcp/user/message
-- MCP Streamable HTTP: http://localhost:5235/mcp/user/mcp
+- `internal/core/mcpproxy/discovery.go`
+- `internal/core/discovery`
+- `internal/core/state/state.go`
+- `cmd/mcp-gateway/main.go`
 
-Configure your MCP Client with the `/sse` or `/mcp` suffix URLs to start using it.
+### 4. 网关治理链 / Gateway Governance Chain
 
-### Testing
+已在 MCP Server `tools/call` 调用路径接入治理能力：
 
-You can test the service using:
+- Authorization / 权限控制
+- Request Timeout / 请求超时
+- Local Rate Limit / 本地令牌桶限流
+- Circuit Breaker / 错误率熔断
+- Fallback / MCP 错误或静态文本降级
 
-1. The MCP Chat page in the web interface
-2. Your own MCP Client (**recommended**)
+相关代码：
 
-📖 Read the full guide → [Quick Start »](https://docs.unla.amoylab.com/getting-started/quick-start)
+- `internal/core/governance`
+- `internal/core/governance_call.go`
+- `internal/core/server.go`
 
----
+## 架构说明 / Architecture
 
-## 🚀 Core Features
+```text
+MCP Client
+    |
+    | SSE / Streamable HTTP
+    v
+MCP Gateway
+    |
+    | Authorization / Timeout / RateLimit / CircuitBreaker / Fallback
+    v
+DiscoveryTransport
+    |
+    | serviceName + group + cluster + metadata
+    v
+Nacos Registry
+    |
+    | healthy instances
+    v
+MCP Server Instance
+```
 
-### 🔌 Protocol & Proxy Capabilities
-- [x] Support for converting RESTful APIs to MCP Server — Client → MCP Gateway → APIs
-- [x] Support proxying MCP services — Client → MCP Gateway → MCP Servers
-- [ ] Support for converting gRPC to MCP Server — Client → MCP Gateway → gRPC
-- [ ] Support for converting WebSocket to MCP Server — Client → MCP Gateway → WebSocket
-- [x] Support for MCP SSE
-- [x] Support for MCP Streamable HTTP
-- [x] Support for MCP responses including text, images, and audio
+## 用户视角调用流程 / User Flow
 
-### 🧠 Session & Multi-Tenant Support
-- [x] Persistent and recoverable session support
-- [x] Multi-tenant support
-- [ ] Support for grouping and aggregating MCP servers
+1. MCP Server 启动后自动注册到 Nacos。
+2. 用户或 MCP Client 请求 Gateway 的 MCP endpoint。
+3. Gateway 根据配置找到对应 MCP Server。
+4. 如果该服务开启 discovery，Gateway 从 Nacos 获取健康实例。
+5. Gateway 按负载均衡策略选择实例。
+6. 调用进入治理链，依次执行权限、超时、限流、熔断和降级逻辑。
+7. Gateway 转发到真实 MCP Server，并把工具调用结果返回给 MCP Client。
 
-### 🛠 Configuration & Management
-- [x] Automatic configuration fetching and seamless hot-reloading
-- [x] Configuration persistence (Disk/SQLite/PostgreSQL/MySQL)
-- [x] Configuration sync via OS Signals, HTTP, or Redis PubSub
-- [x] Version control for configuration
+## 配置示例 / Config Example
 
-### 🔐 Security & Authentication
-- [x] OAuth-based pre-authentication support for MCP Servers
+全局注册中心：
 
-### 🖥 User Interface
-- [x] Intuitive and lightweight management UI
+```yaml
+registry:
+  type: nacos
+  nacos:
+    namespace_id: ""
+    group: DEFAULT_GROUP
+    clusters: DEFAULT
+    servers:
+      - ip: 127.0.0.1
+        port: 8848
+        scheme: http
+```
 
-### 📦 Deployment & Operations
-- [x] Multi-replica service support
-- [x] Docker support
-- [x] Kubernetes and Helm deployment support
+MCP Server discovery：
 
----
+```yaml
+mcpServers:
+  - name: mock-user-sse
+    type: sse
+    policy: onDemand
+    discovery:
+      enabled: true
+      registry: nacos
+      service_name: mock-user-sse
+      group: DEFAULT_GROUP
+      healthy_only: true
+    load_balance:
+      policy: round_robin
+```
 
-## 📚 Documentation
+治理链：
 
-For more usage patterns, configuration examples, and integration guides, please visit:
+```yaml
+governance:
+  authorization:
+    enabled: true
+    mode: allowlist
+    allow_by_default: false
+  timeout:
+    request: 5s
+  rate_limit:
+    enabled: true
+    qps: 20
+    burst: 40
+  circuit_breaker:
+    enabled: true
+    min_requests: 10
+    error_rate: 0.5
+    open_duration: 30s
+  fallback:
+    enabled: true
+    mode: static_text
+    static_text: "service temporarily unavailable"
+```
 
-👉 **https://docs.unla.amoylab.com**
+## 本地验证 / Local Verification
 
----
+启动 Nacos：
 
-## 📄 License
+```powershell
+docker run -d --name nacos-standalone `
+  -e MODE=standalone `
+  -p 8848:8848 `
+  -p 9848:9848 `
+  -p 9849:9849 `
+  nacos/nacos-server:v2.3.2
+```
 
-This project is licensed under the [MIT License](LICENSE).
+定向测试：
 
-## 💬 Join Our WeChat Community
+```powershell
+go test ./cmd/mock-server ./internal/core/discovery ./internal/core/mcpproxy ./internal/core/state ./internal/core ./internal/common/config ./internal/registry/...
+```
 
-Scan the QR code below to add us on WeChat. Please include a note: `mcp-gateway`, `mcpgw` or `unla`.
+真实 Nacos discovery 测试：
 
-<img src="web/public/wechat-qrcode.png" alt="WeChat QR Code" width="350" height="350" />
+```powershell
+$env:UNLA_LIVE_NACOS_TEST='1'
+go test ./internal/core/mcpproxy -run TestDiscoveryTransportWithLiveNacos -v
+```
 
-## 📈 Star History
+自动注册链路测试：
 
-[![Star History Chart](https://api.star-history.com/svg?repos=AmoyLab/Unla&type=Date)](https://star-history.com/#AmoyLab/Unla&Date)
+```powershell
+$env:UNLA_LIVE_NACOS_AUTOREG_TEST='1'
+$env:UNLA_AUTOREG_SERVICE_NAME='mock-user-sse-autoreg-15337'
+go test ./internal/core/mcpproxy -run TestDiscoveryTransportWithLiveNacosAutoRegisteredService -v
+```
+
+## 已验证能力 / Verified Capabilities
+
+- Docker Nacos standalone 可用
+- MCP Server 可自动注册到 Nacos
+- MCP Server 停止后可从 Nacos 注销
+- Gateway 可从 Nacos 发现健康实例
+- Gateway 可通过发现实例调用 MCP tool
+- 治理链覆盖 MCP Server `tools/call`
+- 相关包定向测试通过
+
+## 已知限制 / Known Limitations
+
+- 当前自动注册示例主要覆盖 SSE MCP Server。
+- Windows 下全量 `go test ./...` 仍受上游既有测试影响，包括临时文件锁和 Unix-only signal 测试；本次改造相关包已完成定向验证。
+
+## 原项目说明 / Upstream
+
+本项目基于 Unla / MCP Gateway 二次开发。原项目能力包括：
+
+- REST API 转 MCP Server
+- MCP Server proxy
+- MCP SSE
+- MCP Streamable HTTP
+- 配置持久化与热更新
+- Web 管理界面
+- Docker / Kubernetes / Helm 部署
+
+Upstream repository: `mcp-ecosystem/mcp-gateway`
+
+## License
+
+This project follows the upstream MIT License.
