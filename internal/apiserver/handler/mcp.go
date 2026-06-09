@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -1067,7 +1068,12 @@ func (h *MCP) fetchCapabilities(ctx context.Context, cfg *config.MCPConfig) (*mc
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	errChan := make(chan error, len(cfg.McpServers)*4) // 4 operations per server
+
+	serverCount := len(cfg.McpServers)
+	if serverCount > math.MaxInt/4 {
+		return nil, fmt.Errorf("too many MCP servers configured: %d", serverCount)
+	}
+	errChan := make(chan error, serverCount*4) // 4 operations per server
 
 	// Fetch capabilities from each MCP server concurrently
 	for _, mcpServerCfg := range cfg.McpServers {
